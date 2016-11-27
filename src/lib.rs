@@ -7,7 +7,7 @@
 #![no_std]
 
 use core::ptr;
-use core::ops::{BitOr, BitAnd};
+use core::ops::{BitOr, BitAnd, Not};
 use core::sync::atomic::{AtomicU32, Ordering};
 
 #[repr(C)]
@@ -20,20 +20,16 @@ impl<T> Ro<T> {
 
 #[repr(C)]
 pub struct Rw<T>(T);
-impl<T> Rw<T> where T: BitOr<Output = T> + BitAnd<Output = T> {
+impl<T> Rw<T> where T: BitOr<Output = T> + BitAnd<Output = T> + Not<Output = T> {
     pub fn read(&self) -> T {
         unsafe { ptr::read_volatile(&self.0) }
     }
     pub fn write(&mut self, value: T) {
         unsafe { ptr::write_volatile(&mut self.0, value) }
     }
-    pub fn raise_flags(&mut self, mask: T) {
-        let v = self.read() | mask;
-        self.write(v);
-    }
-    pub fn clear_flags(&mut self, mask: T) {
-        let v = self.read() & mask;
-        self.write(v);
+    pub fn update(&mut self, value: T, mask: T) {
+        let v = self.read() & !mask;
+        self.write(v | value);
     }
 }
 impl<T> !Sync for Rw<T> {}
