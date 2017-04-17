@@ -10,6 +10,22 @@ use core::ptr;
 use core::ops::{BitOr, BitAnd, Not};
 use core::sync::atomic::{AtomicU32, Ordering};
 
+/// Instrumentation Trace Macro Cell
+pub mod itm;
+
+/// Private Peripheral Bus
+pub mod ppb;
+
+use ppb::scb::get_scb;
+/*
+#define SCS_BASE            (0xE000E000UL)                            /*!< System Control Space Base Address  */
+#define ITM_BASE            (0xE0000000UL)                            /*!< ITM Base Address                   */
+#define CoreDebug_BASE      (0xE000EDF0UL)                            /*!< Core Debug Base Address            */
+#define SysTick_BASE        (SCS_BASE +  0x0010UL)                    /*!< SysTick Base Address               */
+#define NVIC_BASE           (SCS_BASE +  0x0100UL)                    /*!< NVIC Base Address                  */
+#define SCB_BASE            (SCS_BASE +  0x0D00UL)                    /*!< System Control Block Base Address  */
+*/
+
 #[repr(C)]
 pub struct Ro<T>(T);
 impl<T> Ro<T> {
@@ -17,6 +33,7 @@ impl<T> Ro<T> {
         unsafe { ptr::read_volatile(&self.0) }
     }
 }
+unsafe impl<T> Sync for Ro<T> {}
 
 #[repr(C)]
 pub struct Rw<T>(T);
@@ -28,11 +45,15 @@ impl<T> Rw<T> where T: BitOr<Output = T> + BitAnd<Output = T> + Not<Output = T> 
         unsafe { ptr::write_volatile(&mut self.0, value) }
     }
     pub fn update(&mut self, value: T, mask: T) {
-        let v = self.read() & !mask;
-        self.write(v | value);
+        unsafe {
+            critical_section_enter();
+            let v = self.read() & !mask;
+            self.write(v | value);
+            critical_section_exit();
+        }
     }
 }
-impl<T> !Sync for Rw<T> {}
+unsafe impl<T> Sync for Rw<T> {}
 
 #[repr(C)]
 pub struct Wo<T>(T);
@@ -41,6 +62,7 @@ impl<T> Wo<T> {
         unsafe { ptr::write_volatile(&mut self.0, value) }
     }
 }
+unsafe impl<T> Sync for Wo<T> {}
 
 pub type Handler = unsafe extern "C" fn ();
 
@@ -60,10 +82,7 @@ pub struct Exceptions {
     pub systick:  Handler
 }
 
-pub mod ppb;
-
 static CSCNT: AtomicU32 = AtomicU32::new(0);
-
 #[no_mangle]
 pub unsafe extern fn critical_section_enter() {
     asm!(  "mrs r0, basepri
@@ -73,7 +92,7 @@ pub unsafe extern fn critical_section_enter() {
     let cs = CSCNT.fetch_add(1, Ordering::SeqCst);
 
     if cs == 0 {
-        debug_assert_eq!(ppb::scb::SCB.icsr.read() & 0xFF, 0);
+        debug_assert_eq!(get_scb().icsr.read() & 0xFF, 0);
     }
 }
 
@@ -86,6 +105,20 @@ pub unsafe extern fn critical_section_exit() {
         asm!("msr basepri, $0"::"r"(0));
     }
 }
+
+
+pub const SYSTMR_BASE: u32 = 0xE000E010;
+pub const NVIC_BASE: u32 = 0xE000E100;
+pub const MPU_BASE: u32 = 0xE000ED90;
+
+pub const ISER_BASE: u32 = 0xE000E100;
+pub const ICER_BASE: u32 = 0xE000E180;
+pub const ISPR_BASE: u32 = 0xE000E200;
+pub const ICPR_BASE: u32 = 0xE000E280;
+pub const IABR_BASE: u32 = 0xE000E300;
+pub const IPR_BASE: u32 = 0xE000E400;
+pub const STIR_BASE: u32 = 0xE000EF00;
+
 
 /*
 #[cfg(target_arch = "arm")]
