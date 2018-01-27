@@ -52,6 +52,10 @@ pub fn get_scb() -> &'static mut SystemControlBlock {
     unsafe { &mut *SCB }
 }
 
+pub fn get_actlr() -> &'static mut AuxiliaryControlRegister {
+    unsafe { &mut *ACTLR }
+}
+
 pub fn system_reset() -> ! {
     let scb = get_scb();
     scb.aircr.update(AIRCR_VECTKEY | AIRCR_SYSRESETREQ, AIRCR_VECTKEY_MASK | AIRCR_SYSRESETREQ);

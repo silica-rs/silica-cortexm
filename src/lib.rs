@@ -7,7 +7,7 @@
 #![no_std]
 
 use core::ptr;
-use core::ops::{BitOr, BitAnd, Not};
+use core::ops::{BitOr, BitAnd, Not, Deref};
 use core::sync::atomic::{AtomicU32, Ordering};
 
 /// Instrumentation Trace Macro Cell
@@ -54,6 +54,13 @@ impl<T> Rw<T> where T: BitOr<Output = T> + BitAnd<Output = T> + Not<Output = T> 
     }
 }
 unsafe impl<T> Sync for Rw<T> {}
+impl<T> Deref for Rw<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
 
 #[repr(C)]
 pub struct Wo<T>(T);

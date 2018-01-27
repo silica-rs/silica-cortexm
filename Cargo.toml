@@ -1,5 +1,5 @@
 [package]
-name = "silica-cortexm3"
+name = "silica-cortexm"
 version = "0.1.0"
 authors = ["ithinuel <ithinuel@gmail.com>"]
 
